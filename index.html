@@ -71,9 +71,13 @@ footer{padding:28px 5%;border-top:1px solid var(--line);color:#777;text-align:ce
 </div></div>
 
 <script>
-
+/* =========================================================
+   ZMIENIASZ TYLKO TE DWIE WARTOŚCI:
+   ADMIN_LOGIN - login administratora
+   ADMIN_PASSWORD - hasło administratora
+   ========================================================= */
 const ADMIN_LOGIN = "pumbi";
-const ADMIN_PASSWORD = "dupy2"; 
+const ADMIN_PASSWORD = "dupa"; // UWAGA: hasło w HTML jest publiczne; to tylko blokada interfejsu, nie zabezpieczenie.
 
 const $=id=>document.getElementById(id);
 const DRAFT_KEY='pumbflix_drive_draft_v1';
@@ -172,4 +176,4 @@ function renderAdmin(){
 }
 loadMovies();
 </script>
-</body></html>'''
+</body></html>
