@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#09090d">
 <title>PUMBFLIX — oglądaj po swojemu</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23101014%22%2F%3E%3Cpath%20d%3D%22M13%2011h14l12%2021-12%2021H13l12-21z%22%20fill%3D%22%23e50914%22%2F%3E%3Cpath%20d%3D%22M32%2011h11l12%2021-12%2021H32l12-21z%22%20fill%3D%22%23ff3945%22%20opacity%3D%22.9%22%2F%3E%3C%2Fsvg%3E">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="icon" type="image/png" href="/favicon.png">
 <meta name="description" content="PUMBFLIX — autorska biblioteka filmowa. Odkrywaj i oglądaj filmy.">
 <style>
 :root{--bg:#09090d;--panel:#15151d;--muted:#a5a5b2;--red:#e50914;--line:#292934}
@@ -51,11 +52,13 @@ header{height:78px;background:linear-gradient(180deg,#08080bf5,#0d0c11e8);box-sh
 @keyframes introLogo{0%{opacity:0;transform:scale(.75);filter:blur(12px)}60%{opacity:1;filter:blur(0)}100%{transform:scale(1)}}@keyframes introExit{to{opacity:0;visibility:hidden}}
 @media(max-width:700px){.hero-nav{right:12px;bottom:12px}.hero-nav button{padding:6px 10px}.shelf .grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(prefers-reduced-motion:reduce){#intro{display:none}}
+
+.admin-entry{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;background:#24242d;border:1px solid #5a333b;border-radius:7px;padding:10px 15px;color:#fff;font-weight:700;white-space:nowrap;transition:.25s}.admin-entry:hover{background:#a90b1a;box-shadow:0 5px 24px #e509143b}.visits{display:inline-block;margin-top:14px;color:#d4d4dd;font-size:14px}@media(max-width:700px){header{gap:8px}.actions{gap:6px}.actions .search{width:100px}.actions>button{display:none}.admin-entry{font-size:12px;padding:9px 8px}.logo{font-size:20px}}
 </style>
 </head>
 <body>
 <div id="intro" aria-hidden="true"><span>PUMBFLIX</span></div>
-<header><div class="logo">PUMBFLIX</div><nav class="nav"><a onclick="showHome()">Główna</a><a onclick="showCatalog()">Filmy</a></nav><div class="actions"><input class="search" id="search" placeholder="Szukaj filmu..." aria-label="Szukaj filmu" oninput="renderMovies()"><button class="primary" onclick="showCatalog()">Filmy</button></div></header>
+<header><div class="logo">PUMBFLIX</div><nav class="nav"><a onclick="showHome()">Główna</a><a onclick="showCatalog()">Filmy</a></nav><div class="actions"><input class="search" id="search" placeholder="Szukaj filmu..." aria-label="Szukaj filmu" oninput="renderMovies()"><button class="primary" onclick="showCatalog()">Filmy</button><a class="admin-entry" href="/admin/">🔐 Logowanie</a></div></header>
 <main>
 <section class="hero" id="hero" aria-label="Polecany film">
  <div class="hero-content"><div class="eyebrow" id="heroTag">PUMBFLIX ORIGINAL</div><h1 id="heroTitle">TWOJE KINO.<br>TWOJE ZASADY.</h1><p id="heroDescription">Najciekawsze historie w jednym miejscu.</p><button class="primary" id="heroPlay" onclick="playFeatured()">▶ Oglądaj teraz</button><div class="hero-controls" id="heroDots"></div></div>
@@ -65,7 +68,7 @@ header{height:78px;background:linear-gradient(180deg,#08080bf5,#0d0c11e8);box-sh
 <section class="shelf" id="popularSection"><h2>🔥 Popularne na PUMBFLIX</h2><div class="grid" id="popularMovies"></div></section>
 <section class="shelf" id="catalogSection"><div class="section-head"><h2 id="catalogTitle">Wszystkie filmy</h2><span class="muted" id="count"></span></div><div class="grid" id="movies"></div></section>
 </main>
-<footer>PUMBFLIX · Twoja prywatna biblioteka filmowa</footer>
+<footer>PUMBFLIX · Twoja prywatna biblioteka filmowa<br><span class="visits">👁️ Odwiedziny: <strong id="visitCount">—</strong></span></footer>
 <div class="modal" id="detailModal" role="dialog" aria-modal="true" aria-label="Szczegóły filmu"><div class="dialog"><div class="dialog-top"><span class="eyebrow">SZCZEGÓŁY TYTUŁU</span><button class="close" onclick="closeModal()" aria-label="Zamknij">×</button></div><div id="detailContent"></div></div></div>
 <script>
 /* ======================================================================
@@ -97,7 +100,7 @@ const $=id=>document.getElementById(id);
 function escapeHTML(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function getDriveId(value){try{const u=new URL(String(value));if(u.protocol!=='https:'||!['drive.google.com','docs.google.com'].includes(u.hostname))return null;const match=u.pathname.match(/^\/file\/d\/([\w-]+)/);const id=match?match[1]:u.searchParams.get('id');return id&&/^[\w-]{10,}$/.test(id)?id:null}catch{return null}}
 function safeImage(value){try{const u=new URL(value);return u.protocol==='https:'?u.href:''}catch{return ''}}
-const movies=FILMY.filter(m=>getDriveId(m.link)&&!m.link.includes('TUTAJ_'));
+let movies=FILMY.filter(m=>getDriveId(m.link)&&!m.link.includes('TUTAJ_'));
 let observer;
 function movieCard(m,id){const card=document.createElement('article');card.className='movie';card.tabIndex=0;card.setAttribute('role','button');card.setAttribute('aria-label','Otwórz '+m.tytul);card.onclick=()=>showDetail(id);card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();showDetail(id)}};const img=safeImage(m.plakat);card.innerHTML='<div class="poster">'+(img?'<img src="'+escapeHTML(img)+'" alt="" loading="lazy">':escapeHTML(m.tytul))+'</div><div class="movie-info"><strong>'+escapeHTML(m.tytul)+'</strong><small>'+escapeHTML(m.typ||'Film')+' · '+escapeHTML(m.kategoria||'Inne')+'</small></div>';return card}
 function fillGrid(id,items){const root=$(id);root.replaceChildren();items.forEach(({m,id},i)=>{const card=movieCard(m,id);root.append(card);card.style.transitionDelay=Math.min(i%10*65,585)+'ms';if(observer)observer.observe(card);else card.classList.add('visible')})}
@@ -110,5 +113,32 @@ function resetFeaturedTimer(){clearInterval(featuredTimer);if(movies.length>1&&!
 function showDetail(id){const m=movies[id];if(!m)return;const driveId=getDriveId(m.link);if(!driveId)return;const img=safeImage(m.plakat);const poster=img?'<img src="'+escapeHTML(img)+'" alt="">':escapeHTML(m.tytul);$('detailContent').innerHTML='<h2>'+escapeHTML(m.tytul)+'</h2><div class="muted">'+escapeHTML(m.typ||'Film')+' · '+escapeHTML(m.kategoria||'Inne')+'</div><div class="detail-poster">'+poster+'</div><p>'+escapeHTML(m.opis||'Brak opisu.')+'</p><iframe class="player" src="https://drive.google.com/file/d/'+encodeURIComponent(driveId)+'/preview" title="'+escapeHTML(m.tytul)+'" allow="autoplay; fullscreen" allowfullscreen></iframe>';$('detailModal').classList.add('open');document.body.style.overflow='hidden'}
 function closeModal(){$('detailModal').classList.remove('open');$('detailContent').replaceChildren();document.body.style.overflow=''}
 $('detailModal').addEventListener('click',e=>{if(e.target===$('detailModal'))closeModal()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});function showHome(){window.scrollTo({top:0,behavior:'smooth'});$('catalogTitle').textContent='Wszystkie filmy'}function showCatalog(){$('catalogTitle').textContent='Cały katalog';$('catalogSection').scrollIntoView({behavior:'smooth'})}renderMovies();updateFeatured();resetFeaturedTimer();
+// Synchronizacja katalogu ze wspólną bazą.
+(async()=>{
+ try {
+  const response=await fetch('https://baclnodzztvctqpnyvrw.supabase.co/rest/v1/filmy?select=*&order=id.desc',{
+   headers:{'apikey':'sb_publishable_XmykZIkmy9Nzl3RKPmHwow_qFblt7j-'}
+  });
+  if(!response.ok)throw Error('Błąd odczytu katalogu: '+response.status);
+  const rows=await response.json();
+  const remote=rows.map(r=>({tytul:r.tytul,typ:r.typ,kategoria:r.kategoria,opis:r.opis,link:r.link,plakat:r.plakat})).filter(m=>getDriveId(m.link));
+  movies=remote;featured=0;renderMovies();updateFeatured();resetFeaturedTimer();
+ }catch(e){console.warn('PUMBFLIX: katalog lokalny pozostaje aktywny.',e)}
+})();
 </script>
-</body></html>
+<script>
+// Jedno naliczenie na kartę przeglądarki; licznik wspólny dla wszystkich odwiedzających.
+(async()=>{
+ const url='https://baclnodzztvctqpnyvrw.supabase.co/rest/v1/rpc/licz_odwiedziny';
+ const key='sb_publishable_XmykZIkmy9Nzl3RKPmHwow_qFblt7j-';
+ const output=document.getElementById('visitCount');
+ try{
+  const counted=sessionStorage.getItem('pumbflix_visit_counted')==='1';
+  const response=await fetch(url,{method:'POST',headers:{'apikey':key,'Content-Type':'application/json'},body:JSON.stringify({nalicz:!counted})});
+  if(!response.ok)throw new Error('Counter not configured');
+  const number=await response.json();
+  if(!counted)sessionStorage.setItem('pumbflix_visit_counted','1');
+  output.textContent=Number(number).toLocaleString('pl-PL');
+ }catch(e){output.textContent='—';}
+})();
+</script></body></html>
