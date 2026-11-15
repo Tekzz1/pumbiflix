@@ -53,136 +53,123 @@ footer{padding:28px 5%;border-top:1px solid var(--line);color:#777;text-align:ce
   <p class="muted" id="loginMessage" aria-live="polite"></p>
  </div>
  <div id="adminContent" style="display:none">
-  <div class="notice">Panel administratora. Dodawanie filmów odbywa się przez wklejenie linku YouTube. Plakat zostanie pobrany automatycznie z YouTube.</div>
+  <div class="notice">Dodawaj linki do własnych filmów z Google Drive. Po zmianach pobierz movies.json i wgraj go do repozytorium GitHub, aby wszyscy widzieli katalog. Logowanie w statycznym HTML nie stanowi prawdziwego zabezpieczenia.</div>
   <div class="admin-layout">
    <div class="formbox"><h3 id="formTitle">Dodaj nowy tytuł</h3>
     <div class="field"><label>Nazwa filmu / serialu</label><input id="title" placeholder="Np. GOD OF ROCK I"></div>
     <div class="field"><label>Typ</label><select id="kind"><option>Film</option><option>Serial</option></select></div>
     <div class="field"><label>Kategoria</label><select id="category"><option>Akcja</option><option>Przygodowy</option><option>Fantasy</option><option>Komedia</option><option>Inne</option></select></div>
     <div class="field"><label>Opis</label><textarea id="description" rows="3" placeholder="Krótki opis..."></textarea></div>
-    <div class="field"><label>Link do filmu YouTube</label><input id="youtubeUrl" type="url" placeholder="https://www.youtube.com/watch?v=..."></div>
-    <div id="posterPreview" class="muted" style="font-size:13px;margin:8px 0">Po wklejeniu linku miniatura pojawi się automatycznie.</div>
+    <div class="field"><label>Link do filmu z Google Drive</label><input id="driveUrl" type="url" placeholder="https://drive.google.com/file/d/ID/view"></div><div class="field"><label>Link do plakatu (opcjonalnie, https://...)</label><input id="posterUrl" type="url" placeholder="https://.../plakat.jpg"></div>
+    <div id="posterPreview" class="muted" style="font-size:13px;margin:8px 0">Bez plakatu pojawi się kafelek z tytułem filmu.</div>
     <button class="primary" onclick="saveMovie()">Zapisz tytuł</button> <button onclick="resetForm()">Wyczyść</button>
    </div>
-   <div class="listbox"><h3>Twoja biblioteka</h3><div id="adminList" class="admin-list"></div></div>
+   <div class="listbox"><h3>Twoja biblioteka</h3><div id="adminList" class="admin-list"></div><p><button class="primary" onclick="exportCatalog()">⬇ Pobierz movies.json</button></p><p class="muted" style="font-size:13px">Po zapisaniu lub usunięciu filmu kliknij „Pobierz movies.json”, a następnie zastąp plik movies.json w repozytorium GitHub. Dopiero wtedy zmiany zobaczą wszyscy.</p></div>
   </div>
   <p style="text-align:right"><button onclick="logoutAdmin()">Wyloguj administratora</button></p>
  </div>
 </div></div>
 
 <script>
-/* =========================================================
-   ZMIENIASZ TYLKO TE DWIE WARTOŚCI:
-   ADMIN_LOGIN - login administratora
-   ADMIN_PASSWORD - hasło administratora
-   ========================================================= */
+
 const ADMIN_LOGIN = "pumbi";
-const ADMIN_PASSWORD = "dupa";
+const ADMIN_PASSWORD = "dupy2"; 
 
-const DB='pumbflix_db', STORE='movies';
 const $=id=>document.getElementById(id);
-let db, editing=null, posterData=null, videoData=null;
-
+const DRAFT_KEY='pumbflix_drive_draft_v1';
+let movies=[], editing=null, draftMode=false;
 function isAdmin(){return sessionStorage.getItem('pumbflix_admin')==='yes'}
 function loginAdmin(){
  const login=$('adminLogin').value.trim(), password=$('adminPassword').value;
  if(login===ADMIN_LOGIN && password===ADMIN_PASSWORD){
-  sessionStorage.setItem('pumbflix_admin','yes');
-  $('loginMessage').textContent='';
-  $('loginArea').style.display='none';
-  $('adminContent').style.display='block';
-  renderAdmin();
- }else{$('loginMessage').textContent='Nieprawidłowy login lub hasło.'}
+  sessionStorage.setItem('pumbflix_admin','yes'); $('loginMessage').textContent='';
+  $('loginArea').style.display='none'; $('adminContent').style.display='block'; renderAdmin();
+ }else $('loginMessage').textContent='Nieprawidłowy login lub hasło.';
 }
-function logoutAdmin(){
- sessionStorage.removeItem('pumbflix_admin');
- $('adminContent').style.display='none';
- $('loginArea').style.display='block';
- $('adminLogin').value='';$('adminPassword').value='';
- resetForm();
-}
-function openDB(){return new Promise((resolve,reject)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE,{keyPath:'id',autoIncrement:true});r.onsuccess=()=>{db=r.result;resolve()};r.onerror=()=>reject(r.error)})}
-function allMovies(){return new Promise((res,rej)=>{let r=db.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
-function putMovie(m){return new Promise((res,rej)=>{let tx=db.transaction(STORE,'readwrite');let r=m.id?tx.objectStore(STORE).put(m):tx.objectStore(STORE).add(m);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})}
-function delMovie(id){return new Promise((res,rej)=>{let r=db.transaction(STORE,'readwrite').objectStore(STORE).delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})}
-
-function getYouTubeId(url){
+function logoutAdmin(){sessionStorage.removeItem('pumbflix_admin');$('adminContent').style.display='none';$('loginArea').style.display='block';$('adminLogin').value='';$('adminPassword').value='';resetForm()}
+function getDriveId(value){
  try{
-  const u=new URL(url);
-  let id='';
-  if(u.hostname==='youtu.be'||u.hostname.endsWith('.youtu.be')) id=u.pathname.split('/').filter(Boolean)[0]||'';
-  else if(u.hostname.includes('youtube.com')){
-   if(u.pathname==='/watch') id=u.searchParams.get('v')||'';
-   else if(/^\/(embed|shorts|live)\/[^/]+/.test(u.pathname)) id=u.pathname.split('/')[2]||'';
-  }
-  return /^[a-zA-Z0-9_-]{11}$/.test(id)?id:null;
+  const u=new URL(value);
+  if(u.protocol!=='https:' || !['drive.google.com','docs.google.com'].includes(u.hostname))return null;
+  let match=u.pathname.match(/^\/file\/d\/([a-zA-Z0-9_-]+)/);
+  const id=match?match[1]:u.searchParams.get('id');
+  return id && /^[a-zA-Z0-9_-]{10,}$/.test(id)?id:null;
  }catch(e){return null}
 }
-function youtubePoster(id){return 'https://img.youtube.com/vi/'+id+'/hqdefault.jpg'}
-function updatePosterPreview(){
- const id=getYouTubeId($('youtubeUrl').value.trim());
- $('posterPreview').innerHTML=id?'<img src="'+youtubePoster(id)+'" alt="Podgląd plakatu" style="max-width:150px;width:100%;border-radius:7px;display:block;margin-top:8px"><span class="muted">Miniatura pobrana automatycznie z YouTube.</span>':'Po wklejeniu poprawnego linku YouTube miniatura pojawi się automatycznie.';
+function safePoster(value){
+ if(!value)return '';
+ try{const u=new URL(value);return u.protocol==='https:'?u.href:''}catch(e){return ''}
 }
-$('youtubeUrl').addEventListener('input',updatePosterPreview);
-
-async function saveMovie(){
+function cleanMovie(m){
+ if(!m || typeof m!=='object')return null;
+ const driveId=getDriveId(String(m.video||''));
+ if(!driveId || !String(m.title||'').trim())return null;
+ return {id:String(m.id||('film-'+driveId)),title:String(m.title).slice(0,150),kind:m.kind==='Serial'?'Serial':'Film',category:String(m.category||'Inne').slice(0,80),description:String(m.description||'').slice(0,3000),poster:safePoster(String(m.poster||'')),video:'https://drive.google.com/file/d/'+driveId+'/view'};
+}
+function saveDraft(){localStorage.setItem(DRAFT_KEY,JSON.stringify(movies));draftMode=true}
+async function loadMovies(){
+ try{
+  const r=await fetch('./movies.json',{cache:'no-store'});
+  if(!r.ok)throw Error('Brak pliku movies.json');
+  const data=await r.json(); if(!Array.isArray(data))throw Error('Nieprawidłowy katalog');
+  movies=data.map(cleanMovie).filter(Boolean);
+ }catch(e){movies=[];console.warn('Nie udało się pobrać movies.json:',e)}
+ const draft=localStorage.getItem(DRAFT_KEY);
+ if(draft){try{const data=JSON.parse(draft);if(Array.isArray(data)){movies=data.map(cleanMovie).filter(Boolean);draftMode=true}}catch(e){console.warn(e)}}
+ renderMovies();
+}
+function saveMovie(){
  if(!isAdmin()){alert('Zaloguj się jako administrator.');return}
- let title=$('title').value.trim(), youtubeUrl=$('youtubeUrl').value.trim();
+ const title=$('title').value.trim(), driveId=getDriveId($('driveUrl').value.trim());
  if(!title){alert('Wpisz nazwę filmu.');return}
- let youtubeId=getYouTubeId(youtubeUrl);
- if(!youtubeId){alert('Wklej poprawny link do filmu YouTube.');return}
- let movies=await allMovies(), old=movies.find(x=>x.id===editing);
- let item={id:editing||undefined,title,kind:$('kind').value,category:$('category').value,description:$('description').value,poster:youtubePoster(youtubeId),video:'https://www.youtube.com/watch?v='+youtubeId,youtubeId};
- try{await putMovie(item);resetForm();await renderMovies();await renderAdmin();alert('Zapisano!')}catch(e){alert('Nie udało się zapisać tytułu.')}
+ if(!driveId){alert('Wklej poprawny link Google Drive do pliku filmu.');return}
+ const posterText=$('posterUrl').value.trim(),poster=safePoster(posterText);
+ if(posterText&&!poster){alert('Link do plakatu musi zaczynać się od https://');return}
+ const item={id:editing||('film-'+Date.now()+'-'+Math.random().toString(36).slice(2,8)),title,kind:$('kind').value,category:$('category').value,description:$('description').value,poster,video:'https://drive.google.com/file/d/'+driveId+'/view'};
+ if(editing){const i=movies.findIndex(x=>x.id===editing);if(i>=0)movies[i]=item;else movies.push(item)}else movies.push(item);
+ saveDraft();resetForm();renderMovies();renderAdmin();alert('Zapisano lokalnie! Teraz pobierz movies.json i wgraj go do GitHub, aby film widzieli inni.');
 }
-function resetForm(){editing=null;$('title').value='';$('kind').value='Film';$('category').value='Akcja';$('description').value='';$('youtubeUrl').value='';$('posterPreview').textContent='Po wklejeniu linku miniatura pojawi się automatycznie.';$('formTitle').textContent='Dodaj nowy tytuł'}
-async function editMovie(id){
- if(!isAdmin())return;
- let m=(await allMovies()).find(x=>x.id===id);if(!m)return;
- editing=id;$('title').value=m.title;$('kind').value=m.kind;$('category').value=m.category;$('description').value=m.description||'';
- $('youtubeUrl').value=m.video||'';$('formTitle').textContent='Edytuj tytuł';updatePosterPreview();
-}
-async function removeMovie(id){
- if(!isAdmin())return;
- if(confirm('Usunąć ten tytuł z biblioteki?')){await delMovie(id);await renderMovies();await renderAdmin()}
-}
-function closeModal(id){$(id).classList.remove('open')}
-function openAdmin(){
- $('adminModal').classList.add('open');
- if(isAdmin()){$('loginArea').style.display='none';$('adminContent').style.display='block';renderAdmin()}
- else{$('loginArea').style.display='block';$('adminContent').style.display='none'}
-}
+function resetForm(){editing=null;$('title').value='';$('kind').value='Film';$('category').value='Akcja';$('description').value='';$('driveUrl').value='';$('posterUrl').value='';$('posterPreview').textContent='Bez plakatu pojawi się kafelek z tytułem filmu.';$('formTitle').textContent='Dodaj nowy tytuł'}
+function updatePosterPreview(){const url=safePoster($('posterUrl').value.trim());$('posterPreview').replaceChildren();if(url){const img=document.createElement('img');img.src=url;img.alt='Podgląd plakatu';img.style.cssText='max-width:150px;width:100%;border-radius:7px;display:block;margin-top:8px';$('posterPreview').append(img)}else $('posterPreview').textContent='Bez plakatu pojawi się kafelek z tytułem filmu.'}
+$('posterUrl').addEventListener('input',updatePosterPreview);
+function editMovie(id){if(!isAdmin())return;const m=movies.find(x=>x.id===id);if(!m)return;editing=id;$('title').value=m.title;$('kind').value=m.kind;$('category').value=m.category;$('description').value=m.description||'';$('driveUrl').value=m.video||'';$('posterUrl').value=m.poster||'';$('formTitle').textContent='Edytuj tytuł';updatePosterPreview()}
+function removeMovie(id){if(!isAdmin())return;if(confirm('Usunąć ten tytuł z biblioteki?')){movies=movies.filter(m=>m.id!==id);saveDraft();renderMovies();renderAdmin()}}
+function exportCatalog(){if(!isAdmin())return;const blob=new Blob([JSON.stringify(movies,null,2)+'\n'],{type:'application/json;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='movies.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function closeModal(id){$(id).classList.remove('open');if(id==='detailModal')$('detailContent').replaceChildren()}
+function openAdmin(){$('adminModal').classList.add('open');if(isAdmin()){$('loginArea').style.display='none';$('adminContent').style.display='block';renderAdmin()}else{$('loginArea').style.display='block';$('adminContent').style.display='none'}}
 function showHome(){window.scrollTo({top:0,behavior:'smooth'});$('catalogTitle').textContent='Polecane tytuły'}
 function showCatalog(){$('catalogTitle').textContent='Cały katalog';$('movies').scrollIntoView({behavior:'smooth'})}
-async function renderMovies(){
- let list=await allMovies(),q=$('search').value.toLowerCase();
- list=list.filter(m=>(m.title+' '+m.category+' '+m.kind).toLowerCase().includes(q));
- $('count').textContent=list.length+' tytułów';$('movies').innerHTML='';
+function escapeHTML(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function renderMovies(){
+ const q=$('search').value.toLowerCase(),list=movies.filter(m=>(m.title+' '+m.category+' '+m.kind).toLowerCase().includes(q));
+ $('count').textContent=list.length+' tytułów';$('movies').replaceChildren();
  if(!list.length){$('movies').innerHTML='<div class="empty">Katalog jest pusty. Otwórz Panel administratora i dodaj pierwszy film.</div>';return}
  list.forEach(m=>{
-  let card=document.createElement('article');card.className='movie';card.onclick=()=>showDetail(m.id);
-  let poster=m.poster?'<img src="'+m.poster+'" alt="">':escapeHTML(m.title);
+  const card=document.createElement('article');card.className='movie';card.onclick=()=>showDetail(m.id);
+  const poster=m.poster?'<img src="'+escapeHTML(m.poster)+'" alt="">':escapeHTML(m.title);
   card.innerHTML='<div class="poster">'+poster+'</div><div class="movie-info"><strong>'+escapeHTML(m.title)+'</strong><small>'+escapeHTML(m.kind)+' · '+escapeHTML(m.category)+'</small></div>';
   $('movies').appendChild(card);
- })
+ });
 }
-function escapeHTML(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-async function showDetail(id){
- let m=(await allMovies()).find(x=>x.id===id);if(!m)return;
- let poster=m.poster?'<img src="'+m.poster+'" alt="">':escapeHTML(m.title);
- let player=m.youtubeId?'<iframe class="player" src="https://www.youtube-nocookie.com/embed/'+encodeURIComponent(m.youtubeId)+'" title="'+escapeHTML(m.title)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>':'<p class="muted">Do tego tytułu nie dodano jeszcze linku YouTube.</p>';
+function showDetail(id){
+ const m=movies.find(x=>x.id===id);if(!m)return;
+ const poster=m.poster?'<img src="'+escapeHTML(m.poster)+'" alt="">':escapeHTML(m.title);
+ const driveId=getDriveId(m.video);
+ const player=driveId?'<iframe class="player" src="https://drive.google.com/file/d/'+encodeURIComponent(driveId)+'/preview" title="'+escapeHTML(m.title)+'" allow="autoplay; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>':'<p class="muted">Brak poprawnego linku Google Drive.</p>';
  $('detailContent').innerHTML='<h2>'+escapeHTML(m.title)+'</h2><div class="muted">'+escapeHTML(m.kind)+' · '+escapeHTML(m.category)+'</div><div class="detail-poster">'+poster+'</div><p>'+escapeHTML(m.description||'Brak opisu.')+'</p>'+player;
  $('detailModal').classList.add('open');
 }
-async function renderAdmin(){
+function renderAdmin(){
  if(!isAdmin())return;
- let list=await allMovies();$('adminList').innerHTML=list.length?'':'<p class="muted">Nie dodano jeszcze żadnych tytułów.</p>';
- list.forEach(m=>{
-  let d=document.createElement('div');d.className='admin-row';
-  d.innerHTML='<span><b>'+escapeHTML(m.title)+'</b><br><small class="muted">'+escapeHTML(m.kind)+' · '+escapeHTML(m.category)+'</small></span><button class="tiny" onclick="editMovie('+m.id+')">Edytuj</button><button class="tiny" onclick="removeMovie('+m.id+')">Usuń</button>';
-  $('adminList').appendChild(d);
- })
+ $('adminList').replaceChildren();if(!movies.length)$('adminList').innerHTML='<p class="muted">Nie dodano jeszcze żadnych tytułów.</p>';
+ movies.forEach(m=>{
+  const row=document.createElement('div');row.className='admin-row';
+  const label=document.createElement('span');label.innerHTML='<b>'+escapeHTML(m.title)+'</b><br><small class="muted">'+escapeHTML(m.kind)+' · '+escapeHTML(m.category)+'</small>';
+  const edit=document.createElement('button');edit.className='tiny';edit.textContent='Edytuj';edit.onclick=()=>editMovie(m.id);
+  const del=document.createElement('button');del.className='tiny';del.textContent='Usuń';del.onclick=()=>removeMovie(m.id);
+  row.append(label,edit,del);$('adminList').appendChild(row);
+ });
 }
-(async()=>{await openDB();await renderMovies()})().catch(()=>{$('movies').innerHTML='<div class="empty">Twoja przeglądarka nie obsługuje lokalnej biblioteki. Otwórz plik w aktualnym Chrome lub Edge.</div>'});
+loadMovies();
 </script>
 </body></html>'''
