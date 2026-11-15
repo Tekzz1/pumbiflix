@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PUMBFLIX — oglądaj po swojemu</title>
+<style>
+:root{--bg:#09090d;--panel:#15151d;--muted:#a5a5b2;--red:#e50914;--line:#292934}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#fff;font:15px/1.5 Arial,sans-serif}
+header{height:72px;display:flex;align-items:center;gap:28px;padding:0 5%;position:sticky;top:0;background:#09090df2;z-index:5;border-bottom:1px solid #20202a}
+.logo{font-size:27px;font-weight:900;color:var(--red);letter-spacing:1px}.nav{display:flex;gap:18px}.nav a{color:#ddd;text-decoration:none;cursor:pointer}.nav a:hover{color:#fff}
+.actions{margin-left:auto;display:flex;gap:10px;align-items:center}button,.btn{border:0;border-radius:6px;padding:10px 15px;font-weight:700;cursor:pointer;background:#292934;color:#fff}button:hover{filter:brightness(1.15)}.primary{background:var(--red)}input,select,textarea{background:#20202a;border:1px solid #383845;border-radius:6px;color:#fff;padding:11px;width:100%;font:inherit}
+.search{width:min(220px,30vw)}main{max-width:1400px;margin:auto;padding:0 5% 60px}.hero{margin:26px 0 38px;min-height:360px;border-radius:14px;overflow:hidden;position:relative;background:linear-gradient(90deg,#111 0%,#17121a 55%,#351015 100%);display:flex;align-items:end;padding:38px}
+.hero:after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 78% 40%,#e5091433,transparent 32%),linear-gradient(0deg,#09090d 0%,transparent 70%);pointer-events:none}
+.hero-content{position:relative;z-index:1;max-width:620px}.eyebrow{color:#ff626a;font-weight:800;letter-spacing:2px;text-transform:uppercase;font-size:12px}.hero h1{font-size:clamp(34px,6vw,64px);line-height:1;margin:10px 0}.hero p{color:#d0cfd5;max-width:550px}.section-head{display:flex;align-items:center;justify-content:space-between;margin:26px 0 14px}.section-head h2{margin:0;font-size:22px}.muted{color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:16px}.movie{background:var(--panel);border:1px solid #242430;border-radius:10px;overflow:hidden;cursor:pointer;transition:.18s}.movie:hover{transform:translateY(-4px);border-color:#555}.poster{height:225px;background:linear-gradient(145deg,#242432,#50151c);display:flex;align-items:center;justify-content:center;text-align:center;padding:14px;font-weight:900;font-size:20px;letter-spacing:1px;color:#fff}.poster img{width:100%;height:100%;object-fit:cover}.movie-info{padding:11px}.movie-info strong{display:block}.movie-info small{color:var(--muted)}
+.empty{padding:32px;border:1px dashed #444;border-radius:10px;color:var(--muted);text-align:center}
+footer{padding:28px 5%;border-top:1px solid var(--line);color:#777;text-align:center}
+.modal{position:fixed;inset:0;background:#000c;display:none;align-items:center;justify-content:center;padding:18px;z-index:10}.modal.open{display:flex}.dialog{background:#171720;border:1px solid #393946;border-radius:12px;width:min(760px,100%);max-height:90vh;overflow:auto;padding:22px}.dialog-top{display:flex;justify-content:space-between;gap:12px;align-items:center}.dialog h2{margin:5px 0 12px}.close{font-size:20px;padding:4px 11px}.detail-poster{height:230px;border-radius:8px;background:linear-gradient(145deg,#252536,#68151e);display:grid;place-items:center;font-size:30px;font-weight:900;margin:14px 0}.detail-poster img{width:100%;height:100%;object-fit:cover;border-radius:8px}
+.admin-layout{display:grid;grid-template-columns:1fr 1fr;gap:18px}.formbox,.listbox{background:#20202a;padding:16px;border-radius:10px}.field{margin:12px 0}.field label{display:block;margin-bottom:5px;color:#ccc;font-size:13px}.admin-list{display:grid;gap:8px}.admin-row{display:flex;gap:10px;align-items:center;background:#171720;padding:9px;border-radius:7px}.admin-row span{flex:1}.tiny{padding:7px 9px;font-size:12px}.notice{font-size:13px;color:#f0c7c9;background:#3a1c22;padding:10px;border-radius:7px;margin:12px 0}
+.player{width:100%;aspect-ratio:16/9;border:0;border-radius:8px;background:#000;margin-top:12px}.loginbox{max-width:390px;margin:18px auto;background:#20202a;padding:20px;border-radius:10px}.loginbox .field{margin:12px 0}
+@media(max-width:700px){header{padding:0 4%;gap:12px}.nav{display:none}.search{width:125px}.hero{min-height:330px;padding:24px}.admin-layout{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.poster{height:190px}}
+</style>
+</head>
+<body>
+<header>
+ <div class="logo">PUMBFLIX</div>
+ <nav class="nav"><a onclick="showHome()">Główna</a><a onclick="showCatalog()">Filmy</a><a onclick="openAdmin()">Panel administratora</a></nav>
+ <div class="actions"><input class="search" id="search" placeholder="Szukaj filmu..." oninput="renderMovies()"><button class="primary" onclick="openAdmin()">Admin</button></div>
+</header>
+<main>
+ <section class="hero" id="hero">
+  <div class="hero-content"><div class="eyebrow">Twoje kino. Twoje historie.</div><h1>WITAJ W<br>PUMBFLIX</h1>
+  <p>Odkrywaj filmy i seriale z autorskiej biblioteki. Wybierz tytuł i rozpocznij seans.</p>
+  <button class="primary" onclick="showCatalog()">Przeglądaj katalog</button></div>
+ </section>
+ <div class="section-head"><h2 id="catalogTitle">Polecane tytuły</h2><span class="muted" id="count"></span></div>
+ <div class="grid" id="movies"></div>
+</main>
+<footer>PUMBFLIX · Twoja prywatna biblioteka filmowa</footer>
+
+<div class="modal" id="detailModal"><div class="dialog">
+ <div class="dialog-top"><span class="eyebrow">SZCZEGÓŁY TYTUŁU</span><button class="close" onclick="closeModal('detailModal')">×</button></div>
+ <div id="detailContent"></div>
+</div></div>
+
+<div class="modal" id="adminModal"><div class="dialog">
+ <div class="dialog-top"><div><div class="eyebrow">STREFA TWÓRCY</div><h2>Panel administratora</h2></div><button class="close" onclick="closeModal('adminModal')">×</button></div>
+ <div id="loginArea" class="loginbox">
+  <h3>Zaloguj się jako administrator</h3>
+  <div class="field"><label>Login</label><input id="adminLogin" autocomplete="username" placeholder="Login administratora"></div>
+  <div class="field"><label>Hasło</label><input id="adminPassword" type="password" autocomplete="current-password" placeholder="Hasło administratora" onkeydown="if(event.key==='Enter')loginAdmin()"></div>
+  <button class="primary" onclick="loginAdmin()">Zaloguj</button>
+  <p class="muted" id="loginMessage" aria-live="polite"></p>
+ </div>
+ <div id="adminContent" style="display:none">
+  <div class="notice">Panel administratora. Dodawanie filmów odbywa się przez wklejenie linku YouTube. Plakat zostanie pobrany automatycznie z YouTube.</div>
+  <div class="admin-layout">
+   <div class="formbox"><h3 id="formTitle">Dodaj nowy tytuł</h3>
+    <div class="field"><label>Nazwa filmu / serialu</label><input id="title" placeholder="Np. GOD OF ROCK I"></div>
+    <div class="field"><label>Typ</label><select id="kind"><option>Film</option><option>Serial</option></select></div>
+    <div class="field"><label>Kategoria</label><select id="category"><option>Akcja</option><option>Przygodowy</option><option>Fantasy</option><option>Komedia</option><option>Inne</option></select></div>
+    <div class="field"><label>Opis</label><textarea id="description" rows="3" placeholder="Krótki opis..."></textarea></div>
+    <div class="field"><label>Link do filmu YouTube</label><input id="youtubeUrl" type="url" placeholder="https://www.youtube.com/watch?v=..."></div>
+    <div id="posterPreview" class="muted" style="font-size:13px;margin:8px 0">Po wklejeniu linku miniatura pojawi się automatycznie.</div>
+    <button class="primary" onclick="saveMovie()">Zapisz tytuł</button> <button onclick="resetForm()">Wyczyść</button>
+   </div>
+   <div class="listbox"><h3>Twoja biblioteka</h3><div id="adminList" class="admin-list"></div></div>
+  </div>
+  <p style="text-align:right"><button onclick="logoutAdmin()">Wyloguj administratora</button></p>
+ </div>
+</div></div>
+
+<script>
+/* =========================================================
+   ZMIENIASZ TYLKO TE DWIE WARTOŚCI:
+   ADMIN_LOGIN - login administratora
+   ADMIN_PASSWORD - hasło administratora
+   ========================================================= */
+const ADMIN_LOGIN = "pumbi";
+const ADMIN_PASSWORD = "dupa";
+
+const DB='pumbflix_db', STORE='movies';
+const $=id=>document.getElementById(id);
+let db, editing=null, posterData=null, videoData=null;
+
+function isAdmin(){return sessionStorage.getItem('pumbflix_admin')==='yes'}
+function loginAdmin(){
+ const login=$('adminLogin').value.trim(), password=$('adminPassword').value;
+ if(login===ADMIN_LOGIN && password===ADMIN_PASSWORD){
+  sessionStorage.setItem('pumbflix_admin','yes');
+  $('loginMessage').textContent='';
+  $('loginArea').style.display='none';
+  $('adminContent').style.display='block';
+  renderAdmin();
+ }else{$('loginMessage').textContent='Nieprawidłowy login lub hasło.'}
+}
+function logoutAdmin(){
+ sessionStorage.removeItem('pumbflix_admin');
+ $('adminContent').style.display='none';
+ $('loginArea').style.display='block';
+ $('adminLogin').value='';$('adminPassword').value='';
+ resetForm();
+}
+function openDB(){return new Promise((resolve,reject)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE,{keyPath:'id',autoIncrement:true});r.onsuccess=()=>{db=r.result;resolve()};r.onerror=()=>reject(r.error)})}
+function allMovies(){return new Promise((res,rej)=>{let r=db.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+function putMovie(m){return new Promise((res,rej)=>{let tx=db.transaction(STORE,'readwrite');let r=m.id?tx.objectStore(STORE).put(m):tx.objectStore(STORE).add(m);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})}
+function delMovie(id){return new Promise((res,rej)=>{let r=db.transaction(STORE,'readwrite').objectStore(STORE).delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})}
+
+function getYouTubeId(url){
+ try{
+  const u=new URL(url);
+  let id='';
+  if(u.hostname==='youtu.be'||u.hostname.endsWith('.youtu.be')) id=u.pathname.split('/').filter(Boolean)[0]||'';
+  else if(u.hostname.includes('youtube.com')){
+   if(u.pathname==='/watch') id=u.searchParams.get('v')||'';
+   else if(/^\/(embed|shorts|live)\/[^/]+/.test(u.pathname)) id=u.pathname.split('/')[2]||'';
+  }
+  return /^[a-zA-Z0-9_-]{11}$/.test(id)?id:null;
+ }catch(e){return null}
+}
+function youtubePoster(id){return 'https://img.youtube.com/vi/'+id+'/hqdefault.jpg'}
+function updatePosterPreview(){
+ const id=getYouTubeId($('youtubeUrl').value.trim());
+ $('posterPreview').innerHTML=id?'<img src="'+youtubePoster(id)+'" alt="Podgląd plakatu" style="max-width:150px;width:100%;border-radius:7px;display:block;margin-top:8px"><span class="muted">Miniatura pobrana automatycznie z YouTube.</span>':'Po wklejeniu poprawnego linku YouTube miniatura pojawi się automatycznie.';
+}
+$('youtubeUrl').addEventListener('input',updatePosterPreview);
+
+async function saveMovie(){
+ if(!isAdmin()){alert('Zaloguj się jako administrator.');return}
+ let title=$('title').value.trim(), youtubeUrl=$('youtubeUrl').value.trim();
+ if(!title){alert('Wpisz nazwę filmu.');return}
+ let youtubeId=getYouTubeId(youtubeUrl);
+ if(!youtubeId){alert('Wklej poprawny link do filmu YouTube.');return}
+ let movies=await allMovies(), old=movies.find(x=>x.id===editing);
+ let item={id:editing||undefined,title,kind:$('kind').value,category:$('category').value,description:$('description').value,poster:youtubePoster(youtubeId),video:'https://www.youtube.com/watch?v='+youtubeId,youtubeId};
+ try{await putMovie(item);resetForm();await renderMovies();await renderAdmin();alert('Zapisano!')}catch(e){alert('Nie udało się zapisać tytułu.')}
+}
+function resetForm(){editing=null;$('title').value='';$('kind').value='Film';$('category').value='Akcja';$('description').value='';$('youtubeUrl').value='';$('posterPreview').textContent='Po wklejeniu linku miniatura pojawi się automatycznie.';$('formTitle').textContent='Dodaj nowy tytuł'}
+async function editMovie(id){
+ if(!isAdmin())return;
+ let m=(await allMovies()).find(x=>x.id===id);if(!m)return;
+ editing=id;$('title').value=m.title;$('kind').value=m.kind;$('category').value=m.category;$('description').value=m.description||'';
+ $('youtubeUrl').value=m.video||'';$('formTitle').textContent='Edytuj tytuł';updatePosterPreview();
+}
+async function removeMovie(id){
+ if(!isAdmin())return;
+ if(confirm('Usunąć ten tytuł z biblioteki?')){await delMovie(id);await renderMovies();await renderAdmin()}
+}
+function closeModal(id){$(id).classList.remove('open')}
+function openAdmin(){
+ $('adminModal').classList.add('open');
+ if(isAdmin()){$('loginArea').style.display='none';$('adminContent').style.display='block';renderAdmin()}
+ else{$('loginArea').style.display='block';$('adminContent').style.display='none'}
+}
+function showHome(){window.scrollTo({top:0,behavior:'smooth'});$('catalogTitle').textContent='Polecane tytuły'}
+function showCatalog(){$('catalogTitle').textContent='Cały katalog';$('movies').scrollIntoView({behavior:'smooth'})}
+async function renderMovies(){
+ let list=await allMovies(),q=$('search').value.toLowerCase();
+ list=list.filter(m=>(m.title+' '+m.category+' '+m.kind).toLowerCase().includes(q));
+ $('count').textContent=list.length+' tytułów';$('movies').innerHTML='';
+ if(!list.length){$('movies').innerHTML='<div class="empty">Katalog jest pusty. Otwórz Panel administratora i dodaj pierwszy film.</div>';return}
+ list.forEach(m=>{
+  let card=document.createElement('article');card.className='movie';card.onclick=()=>showDetail(m.id);
+  let poster=m.poster?'<img src="'+m.poster+'" alt="">':escapeHTML(m.title);
+  card.innerHTML='<div class="poster">'+poster+'</div><div class="movie-info"><strong>'+escapeHTML(m.title)+'</strong><small>'+escapeHTML(m.kind)+' · '+escapeHTML(m.category)+'</small></div>';
+  $('movies').appendChild(card);
+ })
+}
+function escapeHTML(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function showDetail(id){
+ let m=(await allMovies()).find(x=>x.id===id);if(!m)return;
+ let poster=m.poster?'<img src="'+m.poster+'" alt="">':escapeHTML(m.title);
+ let player=m.youtubeId?'<iframe class="player" src="https://www.youtube-nocookie.com/embed/'+encodeURIComponent(m.youtubeId)+'" title="'+escapeHTML(m.title)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>':'<p class="muted">Do tego tytułu nie dodano jeszcze linku YouTube.</p>';
+ $('detailContent').innerHTML='<h2>'+escapeHTML(m.title)+'</h2><div class="muted">'+escapeHTML(m.kind)+' · '+escapeHTML(m.category)+'</div><div class="detail-poster">'+poster+'</div><p>'+escapeHTML(m.description||'Brak opisu.')+'</p>'+player;
+ $('detailModal').classList.add('open');
+}
+async function renderAdmin(){
+ if(!isAdmin())return;
+ let list=await allMovies();$('adminList').innerHTML=list.length?'':'<p class="muted">Nie dodano jeszcze żadnych tytułów.</p>';
+ list.forEach(m=>{
+  let d=document.createElement('div');d.className='admin-row';
+  d.innerHTML='<span><b>'+escapeHTML(m.title)+'</b><br><small class="muted">'+escapeHTML(m.kind)+' · '+escapeHTML(m.category)+'</small></span><button class="tiny" onclick="editMovie('+m.id+')">Edytuj</button><button class="tiny" onclick="removeMovie('+m.id+')">Usuń</button>';
+  $('adminList').appendChild(d);
+ })
+}
+(async()=>{await openDB();await renderMovies()})().catch(()=>{$('movies').innerHTML='<div class="empty">Twoja przeglądarka nie obsługuje lokalnej biblioteki. Otwórz plik w aktualnym Chrome lub Edge.</div>'});
+</script>
+</body></html>'''
